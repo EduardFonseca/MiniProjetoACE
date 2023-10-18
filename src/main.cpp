@@ -41,12 +41,12 @@ int n_led = 5;
 unsigned long time_elapsed=0;
 
 int led_on = n_led-1;
+int led_added = 0;
 
 
 uint16_t count_time = 10; //seconds
 uint16_t count_ms = count_time * 1000; //miliseconds
 uint16_t t_led = count_ms/n_led; //miliseconds
-uint16_t t_led_on = t_led; //miliseconds
 
 // inicializacao da strip
 NeoPixelConnect strip(LED_PIN, MAXIMUM_NUM_NEOPIXELS, pio0, 0);
@@ -68,7 +68,7 @@ void setup()
 
   pinMode(Sgo_pin, INPUT_PULLUP);
   pinMode(Sup_pin, INPUT_PULLUP);
-  pinMode(Sdown_pin, INPUT_PULLUP);
+  pinMode(Sdown_pin, INPUT_PULLUP); 
 
   interval = 40;
   last_cycle = millis();
@@ -162,6 +162,7 @@ void loop()
         led_on = n_led-1; // reset all pixels to one
         time_elapsed = 0; // reset time elapsed
         blink_var = 0;    // reset blink var to off
+        led_added = 0;    // reset led added to 0
 
         // turn off all pixels green
         for(uint8_t i = 0; i < MAXIMUM_NUM_NEOPIXELS; i++) {
@@ -170,9 +171,16 @@ void loop()
       }else if(fsm1.state == 1){
       //countdown
         blink_var = 0; //reset blink var to off
+        
+        // Add LED IF Sup is pressed
+        if(Sup && !prevSup){
+          Serial.print("Sup pressed");
+          led_on+=1;
+          led_added+=1;
+        }
 
         // if time elapsed and time in stae is grater time for the led to be on
-        if(time_elapsed+fsm1.tis >= (5-led_on)*t_led){\
+        if(time_elapsed+fsm1.tis-(led_added*t_led) >= (5-led_on)*t_led){
           //Turn off the led
           led_on-=1;
         }
@@ -253,8 +261,8 @@ void loop()
       Serial.print(fsm2.tis);
 
 
-      Serial.print(" blink_var: ");
-      Serial.print(blink_var);
+      Serial.print(" led_added: ");
+      Serial.print(led_added);
 
       Serial.print(" new_state: ");
       Serial.print(fsm2.new_state);

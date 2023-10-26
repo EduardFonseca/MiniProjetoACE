@@ -11,7 +11,6 @@
 #define Sgo_pin 2
 #define Sup_pin 3
 #define Sdown_pin 4
-
 typedef struct {
   int state, new_state, prev_state;
 
@@ -34,7 +33,8 @@ fsm_t fsm1, // countdown state machine
       fsm3, // config mode state machine
       fsm4, // second half blink
       fsm5, // control config example led
-      fsm6; // auxiliar state machine
+      fsm6, // auxiliar state machine
+      fsm7; // idle state state machine
 
 unsigned long blink_period = 500;
 int blink_var = 0; // se variavel for 0 maquina 2 deve estar em standby se for 1 ela entra em funcionameto
@@ -67,6 +67,14 @@ int fsm4_flag = 0;
 int fsm6_flag = 0;
 int led_mode = 0;
 unsigned long time_buffer = 0;
+
+// idele variables
+uint8_t hue = 0;
+uint8_t step = 10;
+int cycle = 0;
+
+int idle_mode = 0;
+unsigned long idle_time = 30000;
 
 // inicializacao da strip
 NeoPixelConnect strip(LED_PIN, MAXIMUM_NUM_NEOPIXELS, pio0, 0);
@@ -117,6 +125,41 @@ void led_effect(int mode, unsigned long time){
   }
 }
 
+void RGB_wave(int step, uint8_t hue, int cycle){
+  
+  uint8_t hue_g;
+  uint8_t hue_b;
+  uint8_t hue_r;
+  uint8_t r,g,b;
+  if(cycle == 0){
+  // mantain blue hue in 0 and incrise green while decreasing red
+    hue_r = 215 - hue;
+    hue_g = hue;
+    hue_b = 0;
+  }else if(cycle == 1){
+  // mantain red hue in 0 and incrise blue while decreasing green
+    hue_r = 0;
+    hue_g = 214 - hue;   
+    hue_b = hue;
+  }else if(cycle == 2){
+  // mantain green hue in 0 and incrise red while decreasing blue
+    hue_r = hue;
+    hue_g = 0;   
+    hue_b = 215 - hue;
+  }
+  for(uint8_t i = 0; i < MAXIMUM_NUM_NEOPIXELS; i++) {
+    r = hue_r + i*step;
+    g = hue_g + i*step;  
+    b = hue_b + i*step;
+    Serial.print(r);
+    Serial.print(" , ");
+    Serial.print(g);
+    Serial.print(" , ");
+    Serial.println(b);
+
+      strip.neoPixelSetValue(i, r, g, b,true);
+  }
+}
 
 // APAGAR
 void config_leds(int led){
@@ -150,6 +193,7 @@ void setup()
   set_state(fsm4, 0);    
   set_state(fsm5, 0);    
   set_state(fsm6, 0);    
+  set_state(fsm7, 0);
 }
 
 void loop() 
@@ -187,6 +231,7 @@ void loop()
       fsm4.tis = cur_time - fsm4.tes; 
       fsm5.tis = cur_time - fsm5.tes;
       fsm6.tis = cur_time - fsm6.tes;
+      fsm7.tis = cur_time - fsm7.tes;
 
       // TODO: ARRUMAR O ESTADO DE CONFIGURACAO
       // Calculate state transitions for the first state machine
@@ -194,7 +239,7 @@ void loop()
       // state1 = countdown state
       // state2 = finished countdown state
       // state3 = paused state
-      if(config_mode == 0){
+      if(config_mode == 0 && idle_mode == 0){
         if(Sgo && !prevSgo && fsm1.state == 0) {
           // first transition
           // START COUNTDOWN
@@ -228,14 +273,16 @@ void loop()
       // state0 = standby
       // state1 = led_on
       // state2 = led_off
-      if(fsm2.state==0 && blink_var == 1){
+      if(idle_mode == 0){     
+        if(fsm2.state==0 && blink_var == 1){
+          fsm2.new_state = 1;
+        }else if(blink_var == 0){
+          fsm2.new_state = 0;
+        }else if(fsm2.state == 1 && fsm2.tis >= blink_period){
+          fsm2.new_state = 2;
+        }else if(fsm2.state == 2 && fsm2.tis >= blink_period){
         fsm2.new_state = 1;
-      }else if(blink_var == 0){
-        fsm2.new_state = 0;
-      }else if(fsm2.state == 1 && fsm2.tis >= blink_period){
-        fsm2.new_state = 2;
-      }else if(fsm2.state == 2 && fsm2.tis >= blink_period){
-        fsm2.new_state = 1;
+      }
       }
       
       // Calculate state transitions for the third state machine
@@ -244,27 +291,30 @@ void loop()
       // state2 = time config mode
       // state3 = counting efect config mode
       // state4 = colour config mode
-      if(Sup && !prevSup && fsm3.state != 1){
-        config_led += 1;
-        if(config_led > n_led-3){
-          config_led = 0;
-        }
+      if(idle_mode == 0){
+        if(Sup && !prevSup && fsm3.state != 1){
+        // config_led += 1;
+        // if(config_led > n_led-3){
+        //   config_led = 0;
+        // }
         fsm3.new_state = 1;
-      }else if(!Sup && fsm3.state == 1){
-        if(fsm3.prev_state == 0){
-          fsm3.new_state = fsm3.prev_state; 
-        }else{
-          fsm3.new_state = fsm3.prev_state+1;
-          if(fsm3.prev_state == 4){
-            fsm3.new_state = 2;
+        }else if(!Sup && fsm3.state == 1){
+          if(fsm3.prev_state == 0){
+            fsm3.new_state = fsm3.prev_state; 
+          }else{
+            fsm3.new_state = fsm3.prev_state+1;
+            if(fsm3.prev_state == 4){
+              fsm3.new_state = 2;
+            }
+            config_led = fsm3.new_state-2;
           }
-        }
-      }else if(fsm3.state == 1 && fsm3.tis >= press_time && fsm3.prev_state == 0){
-        fsm3.new_state = 2;
-      }else if(fsm3.state == 1 && fsm3.tis >= press_time && fsm3.prev_state != 0){
+        }else if(fsm3.state == 1 && fsm3.tis >= press_time && fsm3.prev_state == 0){
+          fsm3.new_state = 2;
+        }else if(fsm3.state == 1 && fsm3.tis >= press_time && fsm3.prev_state != 0){
         fsm3.new_state = 0;
       }
-
+      }
+      
       // Calculate state transitions for the fourth state machine
       // state0 = standby
       // state1 = led_off
@@ -285,7 +335,6 @@ void loop()
       }else if(fsm5.state == 0 && config_mode == 1){
         fsm5.new_state = 1;
       }else if(fsm3.state != 0 && fsm3.state != 1 && fsm5.prev_state != fsm3.state-1 && fsm5.state != fsm3.state-1){
-        Serial.print("teste");
         fsm5.new_state = fsm3.state-1;
       }else if(fsm5.state == 1 && fsm5.tis >= t_led){
         fsm5.new_state = 11;
@@ -317,8 +366,15 @@ void loop()
         fsm6.new_state = 1;
       }
 
+      // Calculate the state for the seventh state machine
+      if(((fsm1.tis >= idle_time && fsm1.state != 1) || (fsm3.tis >= idle_time && fsm3.state != 0)) && (fsm7.state == 0 && fsm7.tis >= idle_time)){
+        fsm7.new_state = 1;
+      }else if((Sup || Sdown || Sgo) && fsm7.state == 1){
+        fsm7.new_state = 0;
+      }
+
       // Calculate next state for the first state machine
-      if(config_mode == 0){
+      if(config_mode == 0 && idle_mode == 0){
         if(fsm1.state == 0){
         //reset initial state
         led_on = n_led-1; // reset all pixels to one
@@ -331,7 +387,7 @@ void loop()
           strip.neoPixelSetValue(i, 0, 25, 0);  
         }
         }else if(fsm1.state == 1){
-      //countdown
+        //countdown
         blink_var = 0; //reset blink var to off
         
         // Add LED IF Sup is pressed
@@ -345,14 +401,14 @@ void loop()
           time_elapsed += fsm1.tis;
         }
 
+        led_effect(led_mode, time_elapsed+fsm1.tis-(led_added*t_led));
         // if time elapsed and time in stae is grater time for the led to be on
         // TODO: 
-        if(time_elapsed+fsm1.tis-(led_added*t_led) >= (5-led_on)*t_led){
+        if((time_elapsed+fsm1.tis-(led_added*t_led) >= (5-led_on)*t_led) && fsm1.new_state != 3){
           //Turn off the led
           led_on-=1;
         }
         // turn on the right pixels  
-        led_effect(led_mode, time_elapsed+fsm1.tis-(led_added*t_led));
 
         }else if(fsm1.state == 2){
         //finished countdown
@@ -380,54 +436,57 @@ void loop()
       
       // Calculate next state for the second state machine
       // TODO: Para o exercicio e alterar essa maquina
-      if(fsm2.state == 0){
-        //Show LED 
-        // funcao (tipo mostragem)
-        strip.neoPixelShow();
-      }else if(fsm2.state == 1){
-        //Show LED 
-        strip.neoPixelShow();
-      }else if(fsm2.state == 2){
+      if(idle_mode == 0){
+        if(fsm2.state == 0){
+          //Show LED 
+          // funcao (tipo mostragem)
+          strip.neoPixelShow();
+        }else if(fsm2.state == 1){
+          //Show LED 
+          strip.neoPixelShow();
+        }else if(fsm2.state == 2){
         //Show LED 
         strip.neoPixelClear();
       }
-
+      }
+      
       // Calculate next state for the third state machine
-      if(fsm3.state==0){
-        // wait for button press
-        config_led = 0;
-        config_mode = 0;
-      }else if(fsm3.state==1){
-        // wait for time
-      }else if(fsm3.state==2){
-        config_mode = 1;
-        fsm1.new_state = 0;
-        blink_var = 0;
-        // turn on the right pixels
-        if(Sdown && !prevSdown){
-          if(index_time == 3){
-            index_time = 0;
-          }else{
-            index_time += 1;
+      if(idle_mode == 0){
+        if(fsm3.state==0){
+          // wait for button press
+          config_led = 0;
+          config_mode = 0;
+        }else if(fsm3.state==1){
+          // wait for time
+        }else if(fsm3.state==2){
+          config_mode = 1;
+          fsm1.new_state = 0;
+          blink_var = 0;
+          // turn on the right pixels
+          if(Sdown && !prevSdown){
+            if(index_time == 3){
+              index_time = 0;
+            }else{
+              index_time += 1;
+            }
+            t_led = possible_times[index_time];
           }
-          t_led = possible_times[index_time];
-        }
 
-        // config_leds(fsm3.state-2);
-      }else if(fsm3.state == 3){
-        config_mode = 1;
-        fsm1.new_state = 0;
-        // turn on the right pixels
-        if(Sdown && !prevSdown){
-          if(led_mode == 2){
-            led_mode = 0;
-          }else{
-            led_mode += 1;
+          // config_leds(fsm3.state-2);
+        }else if(fsm3.state == 3){
+          config_mode = 1;
+          fsm1.new_state = 0;
+          // turn on the right pixels
+          if(Sdown && !prevSdown){
+            if(led_mode == 2){
+              led_mode = 0;
+            }else{
+              led_mode += 1;
+            }
           }
-        }
 
-        // config_leds(fsm3.state-2);
-      }else if(fsm3.state == 4){
+          // config_leds(fsm3.state-2);
+        }else if(fsm3.state == 4){
         if(Sdown && !prevSdown){
           led_color +=1;
           if(led_color >= 7){
@@ -440,9 +499,10 @@ void loop()
         color[2] = colors[led_color][2];
         // config_leds(fsm3.state-2);
       }
-
+      }
+      
       // Calculate next state for the fourth state machine
-      if(config_mode == 0){
+      if(config_mode == 0 && idle_mode == 0){
         if(fsm4.state == 0){
           for(uint8_t i = 0; i < MAXIMUM_NUM_NEOPIXELS; i++) {
             if(i<=led_on){
@@ -526,6 +586,26 @@ void loop()
         time_buffer = 0;
       }
 
+      if(fsm7.state == 0){
+        // standby
+        idle_mode = 0;
+        hue = 0;
+
+      }else if(fsm7.state == 1){
+        idle_mode = 1;
+
+        RGB_wave(step,hue,cycle);
+        hue++;
+        if(hue >= 215){
+          cycle += 1;
+          if(cycle >=3){
+            cycle = 0;
+          }
+          hue = 0;
+        }
+      }
+
+      
       // Update the states
       set_state(fsm1, fsm1.new_state);
       set_state(fsm2, fsm2.new_state);
@@ -533,6 +613,7 @@ void loop()
       set_state(fsm4, fsm4.new_state);
       set_state(fsm5, fsm5.new_state);
       set_state(fsm6, fsm6.new_state);
+      set_state(fsm7, fsm7.new_state);
 
       // // Debug using the serial port
       // Serial.print("Sgo: ");
@@ -542,11 +623,11 @@ void loop()
       // Serial.print(" Sdown: ");
       // Serial.print(Sdown);
 
-      // Serial.print(" fsm1.state: ");
-      // Serial.print(fsm1.state);
+      Serial.print(" fsm1.state: ");
+      Serial.print(fsm1.state);
       
-      // Serial.print(" fsm1.tis: ");
-      // Serial.print(fsm1.tis);
+      Serial.print(" fsm1.tis: ");
+      Serial.print(fsm1.tis);
 
       // Serial.print(" fsm2.state: ");
       // Serial.print(fsm2.state);
@@ -566,15 +647,21 @@ void loop()
       // Serial.print(" fsm4_flag: ");
       // Serial.print(fsm4_flag);
 
-      Serial.print(" fsm5.state: ");
-      Serial.print(fsm5.state);
+      // Serial.print(" fsm5.state: ");
+      // Serial.print(fsm5.state);
 
-      Serial.print(" fsm5.tis: ");
-      Serial.print(fsm5.tis);
+      // Serial.print(" fsm5.tis: ");
+      // Serial.print(fsm5.tis);
 
-      Serial.print(" fsm5.prev_state: ");
-      Serial.print(fsm5.prev_state);
+      // Serial.print(" fsm5.prev_state: ");
+      // Serial.print(fsm5.prev_state);
 
+      Serial.print(" fsm7.state: ");
+      Serial.print(fsm7.state);
+
+      Serial.print(" led_on: ");
+      Serial.print(led_on);
+      
       Serial.print(" t_led: ");
       Serial.print(t_led);
 
@@ -584,9 +671,12 @@ void loop()
       Serial.print(" time_elapsed: ");
       Serial.print(time_elapsed);
 
-      Serial.print(" time_buffer: ");
-      Serial.print(time_buffer);
-      
+      Serial.print(" hue: ");
+      Serial.print(hue);
+
+      Serial.print(" percent: ");
+      Serial.print(hue*step);
+
 
       Serial.println();
 

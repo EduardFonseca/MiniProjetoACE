@@ -151,13 +151,8 @@ void RGB_wave(int step, uint8_t hue, int cycle){
     r = hue_r + i*step;
     g = hue_g + i*step;  
     b = hue_b + i*step;
-    Serial.print(r);
-    Serial.print(" , ");
-    Serial.print(g);
-    Serial.print(" , ");
-    Serial.println(b);
 
-      strip.neoPixelSetValue(i, r, g, b,true);
+    strip.neoPixelSetValue(i, r, g, b,true);
   }
 }
 
@@ -249,7 +244,7 @@ void loop()
           // END COUNTDOWN
           time_elapsed += fsm1.tis;
           fsm1.new_state = 2;
-        }else if(Sgo && fsm1.state == 2){
+        }else if(Sgo && !prevSgo && fsm1.state == 2){
           // third transition
           // reset when finished
           fsm1.new_state = 0;
@@ -261,7 +256,7 @@ void loop()
           // fifth transition
           // RESUME COUNTDOWN
           fsm1.new_state = 1;
-        }else if(Sgo && fsm1.state == 3){
+        }else if(Sgo && !prevSgo && fsm1.state == 3){
           // sixth transition
           // Reset when paused
           fsm1.new_state = 0;

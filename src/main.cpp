@@ -168,7 +168,6 @@ void config_leds(int led){
 }
 
 
-
 void setup() 
 {
   pinMode(LED_BUILTIN,OUTPUT);
@@ -362,7 +361,7 @@ void loop()
       }
 
       // Calculate the state for the seventh state machine
-      if(((fsm1.tis >= idle_time && fsm1.state != 1) || (fsm3.tis >= idle_time && fsm3.state != 0)) && (fsm7.state == 0 && fsm7.tis >= idle_time)){
+      if(((fsm1.tis >= idle_time && fsm1.state != 1 && config_mode == 0) || (fsm3.tis >= idle_time && fsm3.state != 0 && config_mode == 1)) && (fsm7.state == 0 && fsm7.tis >= idle_time)){
         fsm7.new_state = 1;
       }else if((Sup || Sdown || Sgo) && fsm7.state == 1){
         fsm7.new_state = 0;
@@ -526,48 +525,49 @@ void loop()
       }
 
       // Calculate next state for the fifth state machine
-      if(fsm5.state == 0){
-        // standby
-        fsm6_flag = 0;
-      }else if(fsm5.state == 1){
-        // turn on pixels 0 and 4 (led_config and led_exmp)
-        fsm6_flag = 0;
-        strip.neoPixelFill(0,0,0);
-        strip.neoPixelSetValue(config_led, 25, 25, 0);
-        strip.neoPixelSetValue(4, 25, 25, 0);
-      }else if(fsm5.state == 11){
-        // turn on pixels 0 and 5 (led_config and led_exmp)
-        fsm6_flag = 0;
-        strip.neoPixelFill(0,0,0);
-        strip.neoPixelSetValue(config_led, 25, 25, 0);
-      }else if(fsm5.state == 2){
-        strip.neoPixelFill(0,0,0);
-        strip.neoPixelSetValue(config_led, 25, 25, 0);
-        if(led_mode == 0){
+      if(idle_mode == 0){
+        if(fsm5.state == 0){
+          // standby
           fsm6_flag = 0;
+        }else if(fsm5.state == 1){
+          // turn on pixels 0 and 4 (led_config and led_exmp)
+          fsm6_flag = 0;
+          strip.neoPixelFill(0,0,0);
+          strip.neoPixelSetValue(config_led, 25, 25, 0);
           strip.neoPixelSetValue(4, 25, 25, 0);
-        }if(led_mode ==1){
-          fsm6_flag = 1;
-        }if(led_mode == 2){
+        }else if(fsm5.state == 11){
+          // turn on pixels 0 and 5 (led_config and led_exmp)
           fsm6_flag = 0;
-          if(fsm5.tis > 2000){
-            percent = 0;
-          }else{
-            percent = (float)(2000-fsm5.tis)/(float)(2000);
+          strip.neoPixelFill(0,0,0);
+          strip.neoPixelSetValue(config_led, 25, 25, 0);
+        }else if(fsm5.state == 2){
+          strip.neoPixelFill(0,0,0);
+          strip.neoPixelSetValue(config_led, 25, 25, 0);
+          if(led_mode == 0){
+            fsm6_flag = 0;
+            strip.neoPixelSetValue(4, 25, 25, 0);
+          }if(led_mode ==1){
+            fsm6_flag = 1;
+          }if(led_mode == 2){
+            fsm6_flag = 0;
+            if(fsm5.tis > 2000){
+              percent = 0;
+            }else{
+              percent = (float)(2000-fsm5.tis)/(float)(2000);
+            }
+            strip.neoPixelSetValue(4, percent*25,percent*25, 0);
           }
-          strip.neoPixelSetValue(4, percent*25,percent*25, 0);
-        }
-      }else if(fsm5.state == 3){
-        fsm6_flag = 0;
-        strip.neoPixelFill(0,0,0);
-        strip.neoPixelSetValue(config_led, 25, 25, 0);
-        strip.neoPixelSetValue(4, color[0],color[1],color[2]);
-      }else if(fsm5.state == 21){
+        }else if(fsm5.state == 3){
+          fsm6_flag = 0;
+          strip.neoPixelFill(0,0,0);
+          strip.neoPixelSetValue(config_led, 25, 25, 0);
+          strip.neoPixelSetValue(4, color[0],color[1],color[2]);
+        }else if(fsm5.state == 21){
         fsm6_flag = 0;
         strip.neoPixelFill(0,0,0);
         strip.neoPixelSetValue(config_led, 25, 25, 0);
       }
-
+      }
       // Calculate next state for the sixth state machine
       if(fsm6.state == 0){
         time_buffer = 0;

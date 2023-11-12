@@ -126,7 +126,6 @@ void led_effect(int mode, unsigned long time){
 }
 
 void RGB_wave(int step, uint8_t hue, int cycle){
-  
   uint8_t hue_g;
   uint8_t hue_b;
   uint8_t hue_r;
@@ -227,7 +226,6 @@ void loop()
       fsm6.tis = cur_time - fsm6.tes;
       fsm7.tis = cur_time - fsm7.tes;
 
-      // TODO: ARRUMAR O ESTADO DE CONFIGURACAO
       // Calculate state transitions for the first state machine
       // state0 = initial state
       // state1 = countdown state
